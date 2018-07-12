@@ -74,8 +74,27 @@ public class FCMService extends FirebaseMessagingService implements PushConstant
     String from = message.getFrom();
     Log.d(LOG_TAG, "onMessage - from: " + from);
 
+    // gudtkd928
+    try{
+      Log.d(LOG_TAG, "onMessage - notification: " + message.getNotification());
+      Log.d(LOG_TAG, "onMessage - data: " + message.getData());
+      if(message.getNotification() == null && message.getData()!=null){
+        Map<String, String> data = message.getData();
+        if (data.size() > 0) {
+            if(data.get("type")!=null){
+                Intent serviceIntent = new Intent(this, Class.forName("com.wooltarisoft.happyhome.android_plugin.HappyHomeAndroidPlugin.MonitorAppMainService"));
+                serviceIntent.putExtra("type", data.get("type"));
+                startService(serviceIntent);
+                return;
+            }
+        }
+      }
+    }
+    catch(Exception e){
+      e.printStackTrace();
+    }
+    
     Bundle extras = new Bundle();
-
     if (message.getNotification() != null) {
       extras.putString(TITLE, message.getNotification().getTitle());
       extras.putString(MESSAGE, message.getNotification().getBody());
@@ -90,8 +109,7 @@ public class FCMService extends FirebaseMessagingService implements PushConstant
     if (extras != null && isAvailableSender(from)) {
       Context applicationContext = getApplicationContext();
 
-      SharedPreferences prefs = applicationContext.getSharedPreferences(PushPlugin.COM_ADOBE_PHONEGAP_PUSH,
-          Context.MODE_PRIVATE);
+      SharedPreferences prefs = applicationContext.getSharedPreferences(PushPlugin.COM_ADOBE_PHONEGAP_PUSH, Context.MODE_PRIVATE);
       boolean forceShow = prefs.getBoolean(FORCE_SHOW, false);
       boolean clearBadge = prefs.getBoolean(CLEAR_BADGE, false);
       String messageKey = prefs.getString(MESSAGE_KEY, MESSAGE);
