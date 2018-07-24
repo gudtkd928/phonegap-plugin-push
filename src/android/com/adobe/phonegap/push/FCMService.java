@@ -9,6 +9,7 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.preference.PreferenceManager;
 import android.content.res.AssetManager;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
@@ -29,6 +30,7 @@ import android.support.v4.app.RemoteInput;
 import android.text.Html;
 import android.text.Spanned;
 import android.util.Log;
+import java.util.Locale;
 
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
@@ -74,6 +76,8 @@ public class FCMService extends FirebaseMessagingService implements PushConstant
     String from = message.getFrom();
     Log.d(LOG_TAG, "onMessage - from: " + from);
 
+    Bundle extras = new Bundle();
+
     // gudtkd928
     try{
       Log.d(LOG_TAG, "onMessage - notification: " + message.getNotification());
@@ -81,12 +85,63 @@ public class FCMService extends FirebaseMessagingService implements PushConstant
       if(message.getNotification() == null && message.getData()!=null){
         Map<String, String> data = message.getData();
         if (data.size() > 0) {
-            if(data.get("type")!=null){
-                Intent serviceIntent = new Intent(this, Class.forName("com.wooltarisoft.happyhome.android_plugin.HappyHomeAndroidPlugin.MonitorAppMainService"));
-                serviceIntent.putExtra("type", data.get("type"));
-                startService(serviceIntent);
-                return;
+          String type = data.get("type");
+          if("geo".equals(type) || "system".equals(type)){
+            // mid는 기기의 사용자이므로 data의 mid와 prefUserInfo와 같다는 것은 내가 보낸 push가 된다. 출력할 필요 없음.
+            // 단, test단말(가상 device)이 보내는 것은 나에게만 출력해야 한다.
+            String remoteMid = data.get("mid");
+            String remoteTest = data.get("test");
+            SharedPreferences prefUserInfo = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+            String mid = prefUserInfo.getString("UserInfo.mid", "");
+            Log.d(LOG_TAG, "prefUserInfo - mid: " + mid);
+            if(remoteTest.equals("true")&&!mid.equals(remoteMid) || remoteTest.equals("false") && mid.equals(remoteMid)){
+              Log.d(LOG_TAG, "onMessage - cancel by my message");
+              return;
             }
+            
+            // notId 생성.
+            int notId = prefUserInfo.getInt("notId" + remoteMid, 0);
+            if(notId==0){
+              notId = prefUserInfo.getInt("notId-next", 1);
+              SharedPreferences.Editor editor = prefUserInfo.edit();
+              editor.putInt("notId" + remoteMid, notId);
+              editor.putInt("notId-next", notId+1);
+              editor.apply();
+            }
+            extras.putString(NOT_ID, "" + notId);
+
+            extras.putString(TITLE, data.get("member"));
+            String body;
+            String title = data.get("title");
+            String subData = data.get("data");
+            if("system".equals(type) && "boot".equals(title)){
+              if("ko".equals(Locale.getDefault().getLanguage())){
+                body = String.format("장치가 %s", "on".equals(subData)?"켜졌습니다":"꺼졌습니다");
+              }
+              else{
+                body = String.format("The device is power %s", "on".equals(subData)?"on":"off");
+              }
+            }
+            else if("geo".equals(type)){
+              if("ko".equals(Locale.getDefault().getLanguage())){
+                body = String.format("사용자가 [%s] %s", title, "enter".equals(subData)?"진입했습니다":"벗어났습니다");
+              }
+              else{
+                body = String.format("The user %s [%s]", "enter".equals(subData)?"entered":"leaved", title);
+              }
+            }
+            else{
+              body = title + "/" + subData;
+            }
+            Log.d(LOG_TAG, "onMessage - body(" + Locale.getDefault().getLanguage() + "): " + body);
+            extras.putString(MESSAGE, body);
+          }
+          else {
+            Intent serviceIntent = new Intent(this, Class.forName("com.wooltarisoft.happyhome.android_plugin.HappyHomeAndroidPlugin.MonitorAppMainService"));
+            serviceIntent.putExtra("type", data.get("type"));
+            startService(serviceIntent);
+            return;
+          }
         }
       }
     }
@@ -94,7 +149,6 @@ public class FCMService extends FirebaseMessagingService implements PushConstant
       e.printStackTrace();
     }
     
-    Bundle extras = new Bundle();
     if (message.getNotification() != null) {
       extras.putString(TITLE, message.getNotification().getTitle());
       extras.putString(MESSAGE, message.getNotification().getBody());
@@ -524,6 +578,7 @@ public class FCMService extends FirebaseMessagingService implements PushConstant
      */
     createActions(extras, mBuilder, resources, packageName, notId);
 
+    Log.d(LOG_TAG, "notify notId = " + notId);
     mNotificationManager.notify(appName, notId, mBuilder.build());
   }
 
