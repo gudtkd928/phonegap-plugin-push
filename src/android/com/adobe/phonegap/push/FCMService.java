@@ -77,6 +77,16 @@ public class FCMService extends FirebaseMessagingService implements PushConstant
     Log.d(LOG_TAG, "onMessage - from: " + from);
 
     Bundle extras = new Bundle();
+    if (message.getNotification() != null) {
+      extras.putString(TITLE, message.getNotification().getTitle());
+      extras.putString(MESSAGE, message.getNotification().getBody());
+      extras.putString(SOUND, message.getNotification().getSound());
+      extras.putString(ICON, message.getNotification().getIcon());
+      extras.putString(COLOR, message.getNotification().getColor());
+    }
+    for (Map.Entry<String, String> entry : message.getData().entrySet()) {
+      extras.putString(entry.getKey(), entry.getValue());
+    }
 
     // gudtkd928
     try{
@@ -147,17 +157,6 @@ public class FCMService extends FirebaseMessagingService implements PushConstant
     }
     catch(Exception e){
       e.printStackTrace();
-    }
-    
-    if (message.getNotification() != null) {
-      extras.putString(TITLE, message.getNotification().getTitle());
-      extras.putString(MESSAGE, message.getNotification().getBody());
-      extras.putString(SOUND, message.getNotification().getSound());
-      extras.putString(ICON, message.getNotification().getIcon());
-      extras.putString(COLOR, message.getNotification().getColor());
-    }
-    for (Map.Entry<String, String> entry : message.getData().entrySet()) {
-      extras.putString(entry.getKey(), entry.getValue());
     }
 
     if (extras != null && isAvailableSender(from)) {
