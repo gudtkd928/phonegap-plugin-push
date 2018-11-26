@@ -44,6 +44,7 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -55,7 +56,9 @@ public class FCMService extends FirebaseMessagingService implements PushConstant
 
   private static final String LOG_TAG = "Push_FCMService";
   private static HashMap<Integer, ArrayList<String>> messageMap = new HashMap<Integer, ArrayList<String>>();
-
+  ArrayList<String> mDefinedType = new ArrayList<>(Arrays.asList(    //check contain
+    "system",  "geo",  "post", "message"
+  ));
   public void setNotification(int notId, String message) {
     ArrayList<String> messageList = messageMap.get(notId);
     if (messageList == null) {
@@ -96,35 +99,54 @@ public class FCMService extends FirebaseMessagingService implements PushConstant
         Map<String, String> data = message.getData();
         if (data.size() > 0) {
           String type = data.get("type");
-          if("geo".equals(type) || "system".equals(type)){
-            // mid는 기기의 사용자이므로 data의 mid와 prefUserInfo와 같다는 것은 내가 보낸 push가 된다. 출력할 필요 없음.
+          if(!mDefinedType.contains(type)){
+            Intent serviceIntent = new Intent(this, Class.forName("com.wooltarisoft.happyhome.android_plugin.HappyHomeAndroidPlugin.MonitorAppMainService"));
+            serviceIntent.putExtra("type", data.get("type"));
+            startService(serviceIntent);
+            return;
+          }
+
+          String sid = data.get("sid");   sid = sid!=null ? sid : "";
+          String mid = data.get("mid");   mid = mid!=null ? mid : "";
+          String test = data.get("test"); test = test!=null ? test : "false";
+          SharedPreferences prefUserInfo = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+          String userMid = prefUserInfo.getString("UserInfo.mid", "");
+          Log.d(LOG_TAG, "onMessage" + " userMid: " + userMid + " sid: " + sid + " mid: " + mid + " test: " + test);
+
+          if(type.equals("system")||type.equals("geo")){
+            // mid는 기기의 사용자이므로 mid와 userMid와 같다는 것은 내가 보낸 push가 된다. 출력할 필요 없음.
             // 단, test단말(가상 device)이 보내는 것은 나에게만 출력해야 한다.
-            String remoteMid = data.get("mid");
-            String remoteTest = data.get("test");
-            SharedPreferences prefUserInfo = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
-            String mid = prefUserInfo.getString("UserInfo.mid", "");
-            Log.d(LOG_TAG, "prefUserInfo - mid: " + mid);
-            if(remoteTest.equals("true")&&!mid.equals(remoteMid) || remoteTest.equals("false") && mid.equals(remoteMid)){
+            if(test.equals("true")&&!userMid.equals(mid) || test.equals("false") && userMid.equals(mid)){
               Log.d(LOG_TAG, "onMessage - cancel by my message");
               return;
             }
-            
-            // notId 생성.
-            int notId = prefUserInfo.getInt("notId" + remoteMid, 0);
-            if(notId==0){
-              notId = prefUserInfo.getInt("notId-next", 1);
-              SharedPreferences.Editor editor = prefUserInfo.edit();
-              editor.putInt("notId" + remoteMid, notId);
-              editor.putInt("notId-next", notId+1);
-              editor.apply();
+          }
+          if(type.equals("post")){
+            // sid는 sender mid메시지 착신 사용자.
+            // sid와 userMid가 같은 경우는 내가 보낸 메시지에 대한 push착신이 된다. 출력할 필요 없음. 예) 그룹post를 보내는 경우.
+            if(userMid.equals(sid)){
+              Log.d(LOG_TAG, "onMessage - cancel by my message");
+              return;
             }
-            extras.putString(NOT_ID, "" + notId);
+          }
+          
+          // notId 생성.
+          int notId = prefUserInfo.getInt("notId" + mid, 0);
+          if(notId==0){
+            notId = prefUserInfo.getInt("notId-next", 1);
+            SharedPreferences.Editor editor = prefUserInfo.edit();
+            editor.putInt("notId" + mid, notId);
+            editor.putInt("notId-next", notId+1);
+            editor.apply();
+          }
+          extras.putString(NOT_ID, "" + notId);
 
-            extras.putString(TITLE, data.get("member"));
-            String body;
-            String title = data.get("title");
-            String subData = data.get("data");
-            if("system".equals(type) && "boot".equals(title)){
+          extras.putString(TITLE, data.get("member"));
+          String body;
+          String title = data.get("title");
+          String subData = data.get("data");
+          if("system".equals(type)){
+            if("boot".equals(title)){
               if("ko".equals(Locale.getDefault().getLanguage())){
                 body = String.format("장치가 %s", "on".equals(subData)?"켜졌습니다":"꺼졌습니다");
               }
@@ -132,26 +154,40 @@ public class FCMService extends FirebaseMessagingService implements PushConstant
                 body = String.format("The device is power %s", "on".equals(subData)?"on":"off");
               }
             }
-            else if("geo".equals(type)){
+            else if("permission warning".equals(title)){
               if("ko".equals(Locale.getDefault().getLanguage())){
-                body = String.format("사용자가 [%s] %s", title, "enter".equals(subData)?"진입했습니다":"벗어났습니다");
+                body = String.format("%s 권한이 없습니다.", "overlay".equals(subData) ? "오버레이" : "accessibility".equals(subData) ? "접근성" : subData);
               }
               else{
-                body = String.format("The user %s [%s]", "enter".equals(subData)?"entered":"leaved", title);
+                body = String.format("No permission on %s", subData);
               }
             }
             else{
-              body = title + "/" + subData;
+              body = title;
             }
-            Log.d(LOG_TAG, "onMessage - body(" + Locale.getDefault().getLanguage() + "): " + body);
-            extras.putString(MESSAGE, body);
           }
-          else {
-            Intent serviceIntent = new Intent(this, Class.forName("com.wooltarisoft.happyhome.android_plugin.HappyHomeAndroidPlugin.MonitorAppMainService"));
-            serviceIntent.putExtra("type", data.get("type"));
-            startService(serviceIntent);
-            return;
+          else if("geo".equals(type)){
+            if("ko".equals(Locale.getDefault().getLanguage())){
+              body = String.format("[%s] %s", title, "enter".equals(subData)?"진입했습니다":"벗어났습니다");
+            }
+            else{
+              body = String.format("%s [%s]", "enter".equals(subData)?"entered":"leaved", title);
+            }
           }
+          else{
+            body = "";
+            if(title!=null){
+              body += title;
+            }
+            if(subData!=null){
+              if(body.length() > 0){
+                body += " / ";
+              }
+              body += subData;
+            }
+          }
+          Log.d(LOG_TAG, "onMessage - body(" + Locale.getDefault().getLanguage() + "): " + body);
+          extras.putString(MESSAGE, body);
         }
       }
     }
