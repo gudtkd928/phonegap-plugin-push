@@ -106,8 +106,8 @@ public class FCMService extends FirebaseMessagingService implements PushConstant
             return;
           }
 
-          String sid = data.get("sid");   sid = sid!=null ? sid : "";
-          String mid = data.get("mid");   mid = mid!=null ? mid : "";
+          String sid = data.get("sid");   sid = sid!=null ? sid : ""; //sender mid?
+          String mid = data.get("mid");   mid = mid!=null ? mid : ""; //receiver mid?
           String test = data.get("test"); test = test!=null ? test : "false";
           SharedPreferences prefUserInfo = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
           String userMid = prefUserInfo.getString("UserInfo.mid", "");
@@ -130,64 +130,112 @@ public class FCMService extends FirebaseMessagingService implements PushConstant
             }
           }
           
-          // notId 생성.
-          int notId = prefUserInfo.getInt("notId" + mid, 0);
-          if(notId==0){
-            notId = prefUserInfo.getInt("notId-next", 1);
-            SharedPreferences.Editor editor = prefUserInfo.edit();
-            editor.putInt("notId" + mid, notId);
-            editor.putInt("notId-next", notId+1);
-            editor.apply();
+          Context context = getApplicationContext();
+          String packageName = context.getPackageName();
+          Resources resources = context.getResources();
+          {
+            String title = getAppName(this);
+            if(data.get("title")!=null){
+              title = data.get("title");
+            }
+            else if(data.get("title-loc-key")!=null){
+              String localeKey = data.get("title-loc-key");
+              ArrayList<String> localeFormatData = new ArrayList<String>();
+              if (data.get("title-loc-args")!=null) {
+                String localeData = data.get("title-loc-args");
+                JSONArray localeDataArray = new JSONArray(localeData);
+                for (int i = 0; i < localeDataArray.length(); i++) {
+                  localeFormatData.add(localeDataArray.getString(i));
+                }
+              }
+              int resourceId = resources.getIdentifier(localeKey, "string", packageName);
+              if (resourceId != 0) {
+                title = resources.getString(resourceId, localeFormatData.toArray());
+              } else {
+                title = localeKey;
+              }
+            }
+            extras.putString(TITLE, title);
           }
-          extras.putString(NOT_ID, "" + notId);
 
-          extras.putString(TITLE, data.get("member"));
-          String body;
-          String title = data.get("title");
-          String subData = data.get("data");
-          if("system".equals(type)){
-            if("boot".equals(title)){
-              if("ko".equals(Locale.getDefault().getLanguage())){
-                body = String.format("장치가 %s", "on".equals(subData)?"켜졌습니다":"꺼졌습니다");
-              }
-              else{
-                body = String.format("The device is power %s", "on".equals(subData)?"on":"off");
+          {
+            String body;
+            String localeKey = data.get("loc-key");
+            ArrayList<String> localeFormatData = new ArrayList<String>();
+            if (data.get("loc-args")!=null) {
+              String localeData = data.get("loc-args");
+              JSONArray localeDataArray = new JSONArray(localeData);
+              for (int i = 0; i < localeDataArray.length(); i++) {
+                localeFormatData.add(localeDataArray.getString(i));
               }
             }
-            else if("permission warning".equals(title)){
-              if("ko".equals(Locale.getDefault().getLanguage())){
-                body = String.format("%s 권한이 없습니다.", "overlay".equals(subData) ? "오버레이" : "accessibility".equals(subData) ? "접근성" : subData);
-              }
-              else{
-                body = String.format("No permission on %s", subData);
-              }
+            int resourceId = resources.getIdentifier(localeKey, "string", packageName);
+            if (resourceId != 0) {
+              body = resources.getString(resourceId, localeFormatData.toArray());
+            } else {
+              body = localeKey;
             }
-            else{
-              body = title;
-            }
+            extras.putString(MESSAGE, body);
           }
-          else if("geo".equals(type)){
-            if("ko".equals(Locale.getDefault().getLanguage())){
-              body = String.format("[%s] %s", title, "enter".equals(subData)?"진입했습니다":"벗어났습니다");
-            }
-            else{
-              body = String.format("%s [%s]", "enter".equals(subData)?"entered":"leaved", title);
-            }
-          }
-          else{
-            body = "";
-            if(title!=null){
-              body += title;
-            }
-            if(subData!=null){
-              if(body.length() > 0){
-                body += " / ";
-              }
-              body += subData;
-            }
-          }
-          Log.d(LOG_TAG, "onMessage - body(" + Locale.getDefault().getLanguage() + "): " + body);
-          extras.putString(MESSAGE, body);
+
+          // // notId 생성.
+          // int notId = prefUserInfo.getInt("notId" + mid, 0);
+          // if(notId==0){
+          //   notId = prefUserInfo.getInt("notId-next", 1);
+          //   SharedPreferences.Editor editor = prefUserInfo.edit();
+          //   editor.putInt("notId" + mid, notId);
+          //   editor.putInt("notId-next", notId+1);
+          //   editor.apply();
+          // }
+          // extras.putString(NOT_ID, "" + notId);
+
+          // extras.putString(TITLE, data.get("member"));
+          // String body;
+          // String title = data.get("title");
+          // String subData = data.get("data");
+          // if("system".equals(type)){
+          //   if("boot".equals(title)){
+          //     if("ko".equals(Locale.getDefault().getLanguage())){
+          //       body = String.format("장치가 %s", "on".equals(subData)?"켜졌습니다":"꺼졌습니다");
+          //     }
+          //     else{
+          //       body = String.format("The device is power %s", "on".equals(subData)?"on":"off");
+          //     }
+          //   }
+          //   else if("permission warning".equals(title)){
+          //     if("ko".equals(Locale.getDefault().getLanguage())){
+          //       body = String.format("%s 권한이 없습니다.", "overlay".equals(subData) ? "오버레이" : "accessibility".equals(subData) ? "접근성" : subData);
+          //     }
+          //     else{
+          //       body = String.format("No permission on %s", subData);
+          //     }
+          //   }
+          //   else{
+          //     body = title;
+          //   }
+          // }
+          // else if("geo".equals(type)){
+          //   if("ko".equals(Locale.getDefault().getLanguage())){
+          //     body = String.format("[%s] %s", title, "enter".equals(subData)?"진입했습니다":"벗어났습니다");
+          //   }
+          //   else{
+          //     body = String.format("%s [%s]", "enter".equals(subData)?"entered":"leaved", title);
+          //   }
+          // }
+          // else{
+          //   body = "";
+          //   if(title!=null){
+          //     body += title;
+          //   }
+          //   if(subData!=null){
+          //     if(body.length() > 0){
+          //       body += " / ";
+          //     }
+          //     body += subData;
+          //   }
+          // }
+          // Log.d(LOG_TAG, "onMessage - body(" + Locale.getDefault().getLanguage() + "): " + body);
+          // extras.putString(MESSAGE, body);
         }
       }
     }
