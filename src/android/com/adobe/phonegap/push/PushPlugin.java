@@ -150,12 +150,19 @@ public class PushPlugin extends CordovaPlugin implements PushConstants {
       for (int i=0; i<channels.size(); i++ ) {
         id = channels.get(i).getId();
         if (id.equals(DEFAULT_CHANNEL_ID)) {
+          NotificationChannel channel = channels.get(i);
+          Log.d(LOG_TAG, " id=" + channel.getId() + " name=" + channel.getName() + " desc=" + channel.getDescription());
+          if (channels.get(i).getName().equals("PhoneGap PushPlugin")) {
+            // channels.get(i).setName("HappyHome Message");
+            break;
+          }
           return;
         }
       }
       try {
         options.put(CHANNEL_ID, DEFAULT_CHANNEL_ID);
-        options.putOpt(CHANNEL_DESCRIPTION, "PhoneGap PushPlugin");
+        // options.putOpt(CHANNEL_DESCRIPTION, "PhoneGap PushPlugin");
+        options.putOpt(CHANNEL_DESCRIPTION, "HappyHome Message");
         createChannel(options);
       } catch (JSONException e) {
         Log.e(LOG_TAG, "execute: Got JSON Exception " + e.getMessage());
