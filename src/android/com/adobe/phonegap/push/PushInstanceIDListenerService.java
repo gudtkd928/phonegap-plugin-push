@@ -22,5 +22,14 @@ public class PushInstanceIDListenerService extends FirebaseInstanceIdService imp
         Log.d(LOG_TAG, "Refreshed token: " + refreshedToken);
         // TODO: Implement this method to send any registration to your app's servers.
         //sendRegistrationToServer(refreshedToken);
+        try{
+            Intent serviceIntent = new Intent(this, Class.forName("com.wooltarisoft.happyhome.android_plugin.HappyHomeAndroidPlugin.MonitorAppMainService"));
+            serviceIntent.putExtra("type", "onTokenRefresh");
+            serviceIntent.putExtra("token", refreshedToken);
+            startService(serviceIntent);
+        }
+        catch(Exception e){
+            e.printStackTrace();
+        }
     }
 }
